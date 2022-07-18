@@ -59,6 +59,67 @@ def analyze_data():
     print(alerts, "alertas enviadas")
 
 
+def analyze_light_data():
+    # Consulta los datos de luminosidad de los últimos cinco minutos, los agrupa por estación y variable
+    # Compara el promedio con los límites que está en la base de datos para esa variable.
+    # Si el promedio excede estos valores, se envia un mensaje de alerta indicando luminosidad baja o alta.
+    print("Calculando alertas de luminosidad...")
+
+    luminosidad = get_measurement_from_name('luminosidad')
+
+    data = Data.objects.filter(
+        base_time__gte=datetime.now() - timedelta(minutes=5), measurement_id=luminosidad.id)
+    aggregation = data.annotate(check_value=Avg('avg_value')) \
+        .select_related('station', 'measurement') \
+        .select_related('station__user', 'station__location') \
+        .select_related('station__location__city', 'station__location__state',
+                        'station__location__country') \
+        .values('check_value', 'station__user__username',
+                'measurement__name',
+                'measurement__max_value',
+                'measurement__min_value',
+                'station__location__city__name',
+                'station__location__state__name',
+                'station__location__country__name')
+    alerts = 0
+    for item in aggregation:
+        alert = False
+
+        variable = item["measurement__name"]
+        max_value = item["measurement__max_value"] or 0
+        min_value = item["measurement__min_value"] or 0
+
+        country = item['station__location__country__name']
+        state = item['station__location__state__name']
+        city = item['station__location__city__name']
+        user = item['station__user__username']
+
+        if item["check_value"] > max_value:
+            message = "HIGH-LUM {}".format(item["check_value"])
+            alert = True
+        elif item["check_value"] < min_value:
+            message = "LOW-LUM {} ".format(item["check_value"])
+            alert = True
+
+        if alert:
+            topic = '{}/{}/{}/{}/in'.format(country, state, city, user)
+            print(datetime.now(), "Sending alert to {} {}".format(topic, variable))
+            client.publish(topic, message)
+            alerts += 1
+
+    print(len(aggregation), "dispositivos revisados")
+    print(alerts, "alertas de luminosidad enviadas")
+
+def get_measurement_from_name(name):
+    '''
+    Intenta recuperar la medida a partir del parámetro {name}. Si no existe lanza una excepción.
+    '''
+    try:
+        user = Measurement.objects.get(name=name)
+    except Measurement.DoesNotExist:
+        raise Exception(f'La medida {name} no existe.')
+    return user
+
 def on_connect(client, userdata, flags, rc):
     '''
     Función que se ejecuta cuando se conecta al bróker.
@@ -106,7 +167,10 @@ def start_cron():
     '''
     print("Iniciando cron...")
     schedule.every(5).minutes.do(analyze_data)
-    print("Servicio de control iniciado")
+    scheduler_lum = schedule.Scheduler()
+    scheduler_lum.every(1).minutes.do(analyze_light_data)
+    print("Servicios de control iniciado")
     while 1:
         schedule.run_pending()
+        scheduler_lum.run_pending()
         time.sleep(1)

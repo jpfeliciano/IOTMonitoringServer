@@ -60,7 +60,7 @@ def analyze_data():
 
 
 def analyze_light_data():
-    # Consulta los datos de luminosidad de los últimos cinco minutos, los agrupa por estación y variable
+    # Consulta los datos de luminosidad de la última hora, los agrupa por estación y variable
     # Compara el promedio con los límites que está en la base de datos para esa variable.
     # Si el promedio excede estos valores, se envia un mensaje de alerta indicando luminosidad baja o alta.
     print("Calculando alertas de luminosidad...")

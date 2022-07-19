@@ -66,11 +66,12 @@ def analyze_light_data():
     print("Calculando alertas de luminosidad...")
 
     luminosidad = get_measurement_from_name('luminosidad')
+    print("Medida: id: {}, nombre:{}.".format(luminosidad.id, luminosidad.name))
 
     data = Data.objects.filter(
-        base_time__gte=datetime.now() - timedelta(minutes=2), measurement_id=luminosidad.id)
+        base_time__gte=datetime.now() - timedelta(minutes=2))
     aggregation = data.annotate(check_value=Avg('avg_value')) \
-        .select_related('station', 'measurement') \
+        .select_related('station', 'measurement').filter(id=luminosidad.id) \
         .select_related('station__user', 'station__location') \
         .select_related('station__location__city', 'station__location__state',
                         'station__location__country') \
@@ -169,7 +170,7 @@ def start_cron():
     schedule.every(5).minutes.do(analyze_data)
     scheduler_lum = schedule.Scheduler()
     scheduler_lum.every(1).minutes.do(analyze_light_data)
-    print("Servicios de control iniciado")
+    print("Servicios de control iniciados")
     while 1:
         schedule.run_pending()
         scheduler_lum.run_pending()

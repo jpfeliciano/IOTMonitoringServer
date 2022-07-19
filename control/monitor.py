@@ -68,7 +68,7 @@ def analyze_light_data():
     luminosidad = get_measurement_from_name('luminosidad')
 
     data = Data.objects.filter(
-        base_time__gte=datetime.now() - timedelta(minutes=5), measurement_id=luminosidad.id)
+        base_time__gte=datetime.now() - timedelta(minutes=2), measurement_id=luminosidad.id)
     aggregation = data.annotate(check_value=Avg('avg_value')) \
         .select_related('station', 'measurement') \
         .select_related('station__user', 'station__location') \
